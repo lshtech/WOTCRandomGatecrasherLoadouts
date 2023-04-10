@@ -336,7 +336,6 @@ static private function AddItemToLoadout(const array<Name> Items, EInventorySlot
 	local Name								Item, Upgrade;
 	local bool								IsDistinct;
 	local X2WeaponUpgradeTemplate 			WUTemplate;
-	local X2ItemTemplateManager 			ItemMan;
 	local array<name>						ValidUpgrades;
 
 	IsDistinct = false;
@@ -419,7 +418,7 @@ static private function AddItemToLoadout(const array<Name> Items, EInventorySlot
 	ItemState = EqTemplate.CreateInstanceFromTemplate(StartState);
 	foreach Upgrades(Upgrade)
 	{
-		// `Log("RGL: Checking upgrade " $ Upgrade);
+		`Log("RGL: Checking upgrade " $ Upgrade);
 
 		if (Upgrade == '') 
 		{
@@ -427,27 +426,25 @@ static private function AddItemToLoadout(const array<Name> Items, EInventorySlot
 			continue;
 		}
 			
-		WUTemplate = X2WeaponUpgradeTemplate(ItemMan.FindItemTemplate(Upgrade));
-		if (WUTemplate != none) // && WUTemplate.CanApplyUpgradeToWeapon(ItemState))
-			ValidUpgrades.AddItem(Upgrade);
-		// {
-		// 	`Log("RGL: Validated upgrade " $ Upgrade);
-		// 	ValidUpgrades.AddItem(Upgrade);
-		// }			
+		WUTemplate = X2WeaponUpgradeTemplate(ItemMgr.FindItemTemplate(Upgrade));
+		if (WUTemplate != none && WUTemplate.CanApplyUpgradeToWeapon(ItemState))
+			ValidUpgrades.AddItem(Upgrade);	
 	}
 
-	Upgrade = GetRandomItem(ValidUpgrades);
-	`Log("RGL: Selected upgrade " $ Upgrade);
-
-	// Equip item on the soldier. Delete the item if we fail.	
-	if (Upgrade != '')
+	if (ValidUpgrades.length > 0)
 	{
-		ItemMan = class'X2ItemTemplateManager'.static.GetItemTemplateManager();
-		WUTemplate = X2WeaponUpgradeTemplate(ItemMan.FindItemTemplate(Upgrade));
-		ItemState.ApplyWeaponUpgradeTemplate(WUtemplate);
-		`Log("RGL: Adding " $ WUTemplate.Name $ " to " $ ItemState.GetMyTemplateName());
-	}
+		Upgrade = GetRandomItem(ValidUpgrades);
+		`Log("RGL: Selected upgrade " $ Upgrade);
 
+		// Equip item on the soldier. Delete the item if we fail.	
+		if (Upgrade != '')
+		{
+			WUTemplate = X2WeaponUpgradeTemplate(ItemMgr.FindItemTemplate(Upgrade));
+			ItemState.ApplyWeaponUpgradeTemplate(WUtemplate);
+			`Log("RGL: Adding " $ WUTemplate.Name $ " to " $ ItemState.GetMyTemplateName());
+		}
+	}
+	
 	`Log("RGL: Adding " $ ItemState.GetMyTemplateName() $ " to " $ Slot);
 	if (!UnitState.AddItemToInventory(ItemState, Slot, StartState))
 	{		
