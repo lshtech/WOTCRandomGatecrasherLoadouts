@@ -19,21 +19,6 @@ struct RandomLoadout
 	var array<RandomLoadoutSlot> 	Slots;
 };
 
-struct GatecrasherInventoryLoadoutItem
-{
-	var name Item;
-	var EInventorySlot Slot;
-
-	structdefaultproperties
-	{
-		Slot = eInvSlot_Unknown
-	}
-};
-struct GatecrasherInventoryLoadout
-{
-	var name SoldierClass;
-	var array<GatecrasherInventoryLoadoutItem> Items;
-};
 struct GatecrasherLoadout
 {
 	var name 			SoldierClass;
@@ -52,7 +37,6 @@ struct GatecrasherLoadout
 	var array<name>		ArmorUpgradeList;
 };
 
-var config(GatecrasherLoadouts) array<GatecrasherInventoryLoadout> 	GCLoadouts;
 var config(GatecrasherLoadouts) bool								UseVersion2;
 var config(GatecrasherLoadouts) array<GateCrasherLoadout>			GCLoadouts2;
 var config(GatecrasherLoadouts) bool								UseVersion3;
@@ -89,113 +73,6 @@ static event InstallNewCampaign(XComGameState StartState)
 		Version3(StartState, XComHQ, UnitStates);
 	else if (default.UseVersion2)
 		Version2(StartState, XComHQ, UnitStates);
-	else
-		Version1(StartState, XComHQ, UnitState, UnitStates);	
-}
-
-static private function Version1(XComGameState StartState, XComGameState_HeadquartersXCom XComHQ, XComGameState_Unit UnitState, array<XComGameState_Unit> UnitStates)
-{
-	local array<XComGameState_Item>			 ItemStates;
-	local XComGameState_Item				 ItemState;
-	local GatecrasherInventoryLoadout		 GCLoadout;
-	local array<GatecrasherInventoryLoadout> ValidGCLoadouts;
-	local array<GatecrasherInventoryLoadout> GCLoadoutsClass;
-	local GatecrasherInventoryLoadoutItem	 LoadoutItem;
-	local X2ItemTemplateManager				 ItemMgr;
-	local X2EquipmentTemplate				 EqTemplate;
-	local array<EInventorySlot>				 EmptiedSlots;
-
-	//	## Build an array of valid loadouts. An array will be invalid if it includes items with missing templates,
-	//	because of a typo in the template name or because the mod that adds that item is missing.
-	ItemMgr = class'X2ItemTemplateManager'.static.GetItemTemplateManager();
-	foreach default.GCLoadouts(GCLoadout)
-	{
-		if (IsLoadoutValid(GCLoadout, ItemMgr))
-		{
-			ValidGCLoadouts.AddItem(GCLoadout);
-		}
-	}
-
-	//	## Go through all units in the squad.
-	foreach UnitStates(UnitState)
-	{
-		//	## Build an array of loadouts applicable to this soldier class.
-		GCLoadoutsClass.Length = 0;
-		EmptiedSlots.Length = 0;
-		foreach ValidGCLoadouts(GCLoadout)
-		{
-			if (GCLoadout.SoldierClass == UnitState.GetSoldierClassTemplateName())
-			{
-				GCLoadoutsClass.AddItem(GCLoadout);
-			}
-		}
-		//	## No loadouts found? Skip this soldier.
-		if (GCLoadoutsClass.Length == 0)
-			continue;
-
-		//	## Select a random loadout from the generated array.
-		GCLoadout = GCLoadoutsClass[`SYNC_RAND_STATIC(GCLoadoutsClass.Length)];
-
-		//	## Cycle through all items in that loadout.
-		foreach GCLoadout.Items(LoadoutItem)
-		{
-			//	Access equipment template of this item.
-			EqTemplate = X2EquipmentTemplate(ItemMgr.FindItemTemplate(LoadoutItem.Item));
-
-			//	Use the inventory slot in the equipment template if it was not specified in config.
-			if (LoadoutItem.Slot == eInvSlot_Unknown)
-			{
-				LoadoutItem.Slot = EqTemplate.InventorySlot;
-			}
-
-			//	Remove already equipped item(s) in this slot.
-			if (class'CHItemSlot'.static.SlotIsMultiItem(LoadoutItem.Slot))
-			{
-				// If we have not removed all items from this slot before, do this now.
-				if (EmptiedSlots.Find(LoadoutItem.Slot) == INDEX_NONE)
-				{
-					ItemStates = UnitState.GetAllItemsInSlot(LoadoutItem.Slot, StartState, true, true);
-					foreach ItemStates(ItemState)
-					{
-						if (UnitState.RemoveItemFromInventory(ItemState, StartState))
-						{
-							XComHQ.PutItemInInventory(StartState, ItemState);
-						}
-						else
-						{
-							`LOG("WARNING, unable to remove item:" @ ItemState.GetMyTemplateName() @ "from inventory slot:" @ LoadoutItem.Slot @ "on soldier class:" @ UnitState.GetSoldierClassTemplateName(),, name(default.DLCIdentifier));
-						}
-					}
-					// Store this slot so we don't empty it again later. Required for being able to carry more than one utility slot item, for examply.
-					EmptiedSlots.AddItem(LoadoutItem.Slot);
-				}
-			}
-			else
-			{
-				ItemState = UnitState.GetItemInSlot(LoadoutItem.Slot, StartState, true);
-				if (UnitState.RemoveItemFromInventory(ItemState, StartState))
-				{
-					XComHQ.PutItemInInventory(StartState, ItemState);
-				}
-				else
-				{
-					`LOG("WARNING, unable to remove item:" @ ItemState.GetMyTemplateName() @ "from inventory slot:" @ LoadoutItem.Slot @ "on soldier class:" @ UnitState.GetSoldierClassTemplateName(),, name(default.DLCIdentifier));
-				}
-			}
-
-			// Equip item on the soldier. Delete the item if we fail.
-			ItemState = EqTemplate.CreateInstanceFromTemplate(StartState);
-			if (!UnitState.AddItemToInventory(ItemState, LoadoutItem.Slot, StartState))
-			{
-				`LOG("WARNING, unable to add item:" @ ItemState.GetMyTemplateName() @ "to inventory slot:" @ LoadoutItem.Slot @ "on soldier class:" @ UnitState.GetSoldierClassTemplateName(),, name(default.DLCIdentifier));
-				StartState.PurgeGameStateForObjectID(ItemState.ObjectID);
-			}
-
-			// One item handled. Go to the next inventory item on the loadout.
-		}
-
-		// One soldier handled. Go the to the next unit in squad.
-	}
 }
 
 static private function Version2(XComGameState StartState, XComGameState_HeadquartersXCom XComHQ, array<XComGameState_Unit> UnitStates)
@@ -292,21 +169,6 @@ static private function Version3(XComGameState StartState, XComGameState_Headqua
 		}
 		// One soldier handled. Go the to the next unit in squad.
 	}
-}
-
-static private function bool IsLoadoutValid(const out GatecrasherInventoryLoadout GCLoadout, const X2ItemTemplateManager ItemMgr)
-{
-	local GatecrasherInventoryLoadoutItem LoadoutItem;
-
-	foreach GCLoadout.Items(LoadoutItem)
-	{
-		if (X2EquipmentTemplate(ItemMgr.FindItemTemplate(LoadoutItem.Item)) == none)
-		{
-			`LOG("WARNING, unable to find equipment template for item:" @ LoadoutItem.Item @ "skipping this loadout.",, name(default.DLCIdentifier));
-			return false;
-		}
-	}
-	return true;
 }
 
 static private function array<name> AreItemsValid(const Array<Name> Items, const X2ItemTemplateManager ItemMgr)
